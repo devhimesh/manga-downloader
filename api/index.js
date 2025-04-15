@@ -34,9 +34,21 @@ module.exports = async (req, res) => {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Referer': 'https://mangatoon.mobi/'
+        'Referer': 'https://mangatoon.mobi/',
+        'Cookie': 'locale=en'
+      },
+      timeout: 10000, // 10 second timeout
+      validateStatus: function (status) {
+        return status < 500; // Accept any status code less than 500
       }
     });
+
+    if (response.status !== 200) {
+      return res.status(response.status).json({
+        success: false,
+        message: `MangaToon returned status code: ${response.status}`
+      });
+    }
 
     const html = response.data;
     const $ = cheerio.load(html);
@@ -47,9 +59,11 @@ module.exports = async (req, res) => {
     
     // Extract images from the chapter
     const images = [];
+    
+    // Method 1: Direct image tags
     $('.pictures img').each((index, element) => {
       const src = $(element).attr('src');
-      if (src) {
+      if (src && src.includes('://')) {
         images.push({
           index: index + 1,
           url: src
@@ -57,13 +71,11 @@ module.exports = async (req, res) => {
       }
     });
 
-    // Check if we found any images
+    // Method 2: Viewer container
     if (images.length === 0) {
-      console.log('Trying alternative image extraction method...');
-      // Try alternative image extraction method
       $('.viewer-container img').each((index, element) => {
         const src = $(element).attr('src') || $(element).attr('data-src');
-        if (src) {
+        if (src && src.includes('://')) {
           images.push({
             index: index + 1,
             url: src
@@ -72,13 +84,12 @@ module.exports = async (req, res) => {
       });
     }
 
-    // If still no images, try script tags that might contain image data
+    // Method 3: Script tags with image data
     if (images.length === 0) {
-      console.log('Trying to extract images from script tags...');
       const scriptContent = $('script').map((i, el) => $(el).html()).get().join('');
       
-      // Look for image URLs in script content
-      const imgRegex = /"(https:\/\/[^"]*\/comics\/[^"]*\.(jpg|png|webp))"/g;
+      // More comprehensive regex for image URLs
+      const imgRegex = /(https?:\/\/[^"'\s]+\/comics\/[^"'\s]+\.(jpe?g|png|webp|gif))/gi;
       let match;
       let index = 1;
       
@@ -89,8 +100,56 @@ module.exports = async (req, res) => {
         });
       }
     }
+    
+    // Method 4: Look for data in JSON objects within scripts
+    if (images.length === 0) {
+      $('script').each((i, el) => {
+        const content = $(el).html() || '';
+        if (content.includes('comicImgs') || content.includes('imageList')) {
+          try {
+            // Try to extract JSON data
+            const jsonMatch = content.match(/(\{.*"comicImgs".*\}|\{.*"imageList".*\})/s);
+            if (jsonMatch) {
+              const jsonStr = jsonMatch[0];
+              const jsonData = JSON.parse(jsonStr);
+              
+              // Extract images from various possible structures
+              const imgList = jsonData.comicImgs || jsonData.imageList || 
+                             (jsonData.data && (jsonData.data.comicImgs || jsonData.data.imageList));
+              
+              if (Array.isArray(imgList)) {
+                imgList.forEach((img, idx) => {
+                  if (typeof img === 'string' && img.includes('://')) {
+                    images.push({
+                      index: idx + 1,
+                      url: img
+                    });
+                  } else if (img.url && img.url.includes('://')) {
+                    images.push({
+                      index: idx + 1,
+                      url: img.url
+                    });
+                  }
+                });
+              }
+            }
+          } catch (e) {
+            console.log('Error parsing script JSON:', e.message);
+          }
+        }
+      });
+    }
 
     console.log(`Found ${images.length} images`);
+
+    // If no images found, return a useful error
+    if (images.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No images found in the chapter. Website structure may have changed.',
+        html: html.substring(0, 200) + '...' // Return a small sample of HTML for debugging
+      });
+    }
 
     return res.json({
       success: true,
@@ -103,8 +162,7 @@ module.exports = async (req, res) => {
     console.error('Error fetching manga:', error);
     return res.status(500).json({ 
       success: false, 
-      message: 'Error fetching manga', 
-      error: error.message 
+      message: 'Error fetching manga: ' + error.message
     });
   }
 };
