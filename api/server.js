@@ -1,20 +1,24 @@
-// server.js
-const express = require('express');
+// api/index.js
 const axios = require('axios');
 const cheerio = require('cheerio');
-const cors = require('cors');
-const path = require('path');
 
-const app = express();
-const PORT = 3000;
+module.exports = async (req, res) => {
+  // Enable CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-// Enable CORS and JSON parsing
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+  // Handle OPTIONS request (preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
 
-// Route to fetch manga images
-app.post('/api/fetch-manga', async (req, res) => {
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
   try {
     const { url } = req.body;
     
@@ -103,42 +107,4 @@ app.post('/api/fetch-manga', async (req, res) => {
       error: error.message 
     });
   }
-});
-
-// Proxy route to bypass CORS for image fetching
-app.get('/api/proxy-image', async (req, res) => {
-  try {
-    const imageUrl = req.query.url;
-    
-    if (!imageUrl) {
-      return res.status(400).send('Image URL is required');
-    }
-    
-    const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Referer': 'https://mangatoon.mobi/'
-      }
-    });
-    
-    // Set the content type header
-    const contentType = response.headers['content-type'];
-    res.setHeader('Content-Type', contentType);
-    
-    // Send the image data
-    res.send(response.data);
-  } catch (error) {
-    console.error('Error proxying image:', error);
-    res.status(500).send('Error fetching image');
-  }
-});
-
-// Serve the frontend
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+};
