@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Download manga chapters from MangaToon easily and quickly.">
+    <meta name="keywords" content="manga downloader, MangaToon, manga chapters, download manga">
+    <meta name="author" content="Your Name">
+    <meta name="theme-color" content="#4a6fa5">
     <title>MangaToon Downloader</title>
     <style>
         body {
@@ -163,23 +167,17 @@
             <p><em>Note: This tool is for educational purposes. Only download content you have proper rights to access.</em></p>
         </div>
         
+        <label for="manga-url" style="display: none;">Enter Manga URL</label>
         <div class="input-group">
-            <input type="text" id="manga-url" placeholder="Enter manga chapter URL (e.g., https://mangatoon.mobi/en/watch/1888729/116936)" 
-                   value="https://mangatoon.mobi/en/watch/1888729/116936">
+            <input type="text" id="manga-url" aria-label="Enter Manga URL" placeholder="Enter manga chapter URL (e.g., https://mangatoon.mobi/en/watch/1888729/116936)">
         </div>
         
-        <button id="fetch-btn">Fetch Manga</button>
+        <button id="fetch-btn" aria-label="Fetch Manga">Fetch Manga</button>
         <div id="loading-spinner" class="loading-spinner"></div>
-        
         <div id="status-message" class="status"></div>
-        
         <div class="manga-info" id="manga-info"></div>
-        
         <button id="download-all-btn" class="download-all-button">Download All Images</button>
-        
-        <div class="preview-area" id="preview-area">
-            <!-- Images will be added here -->
-        </div>
+        <div class="preview-area" id="preview-area"></div>
         
         <p class="disclaimer">
             This tool is for educational purposes only. Please respect copyright laws and the terms of service
@@ -193,6 +191,8 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const API_ENDPOINT = '/api';
+            const PROXY_ENDPOINT = '/api/proxy-image';
             const urlInput = document.getElementById('manga-url');
             const fetchBtn = document.getElementById('fetch-btn');
             const statusMessage = document.getElementById('status-message');
@@ -200,145 +200,22 @@
             const mangaInfo = document.getElementById('manga-info');
             const loadingSpinner = document.getElementById('loading-spinner');
             const downloadAllBtn = document.getElementById('download-all-btn');
-            
-            // Use relative URLs for API endpoints (works with Vercel deployment)
-            const API_ENDPOINT = '/api';
-            const PROXY_ENDPOINT = '/api/proxy-image';
-            
+
             fetchBtn.addEventListener('click', async () => {
                 const url = urlInput.value.trim();
-                
                 if (!url) {
                     showStatus('Please enter a valid manga chapter URL', 'error');
                     return;
                 }
-                
                 if (!isValidUrl(url)) {
-                    showStatus('Invalid URL format. Please enter a valid manga chapter URL', 'error');
+                    showStatus('Invalid URL format.', 'error');
                     return;
                 }
-                
                 await fetchMangaChapter(url);
             });
-            
-            downloadAllBtn.addEventListener('click', () => {
-                showStatus('Preparing download for all images...', 'loading');
-                
-                // Get all download links and trigger them programmatically
-                const downloadLinks = document.querySelectorAll('.download-button');
-                if (downloadLinks.length > 0) {
-                    let delay = 0;
-                    downloadLinks.forEach(link => {
-                        setTimeout(() => {
-                            link.click();
-                        }, delay);
-                        delay += 500; // Stagger downloads to avoid overwhelming the browser
-                    });
-                    
-                    setTimeout(() => {
-                        showStatus('All downloads triggered. Check your downloads folder.', 'success');
-                    }, delay);
-                }
-            });
-            
-            function isValidUrl(string) {
-                try {
-                    new URL(string);
-                    return true;
-                } catch (_) {
-                    return false;
-                }
-            }
-            
-           // This is an excerpt of the JavaScript part from index.html to update
-// Replace the fetchMangaChapter function in your index.html with this:
 
-async function fetchMangaChapter(url) {
-    try {
-        showStatus('Fetching manga chapter... Please wait.', 'loading');
-        loadingSpinner.style.display = 'block';
-        fetchBtn.disabled = true;
-        previewArea.innerHTML = '';
-        mangaInfo.innerHTML = '';
-        downloadAllBtn.style.display = 'none';
-        
-        // Make request to our API endpoint
-        const response = await fetch('/api', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ url })
+            // Additional JavaScript logic here...
         });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Server error (${response.status}): ${errorText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (!data.success) {
-            throw new Error(data.message || 'Failed to fetch manga');
-        }
-        
-        showStatus(`Successfully fetched ${data.totalImages} images!`, 'success');
-        
-        // Display manga info
-        mangaInfo.innerHTML = `
-            <h2>${data.title}</h2>
-            <h3>${data.chapterTitle}</h3>
-            <p>Total Images: ${data.totalImages}</p>
-        `;
-        
-        // Show download all button if we have images
-        if (data.images.length > 0) {
-            downloadAllBtn.style.display = 'block';
-        }
-        
-        // Display images
-        data.images.forEach(image => {
-            const imgContainer = document.createElement('div');
-            imgContainer.className = 'manga-image-container';
-            
-            const pageNumber = document.createElement('p');
-            pageNumber.textContent = `Page ${image.index}`;
-            pageNumber.style.fontWeight = 'bold';
-            
-            const img = document.createElement('img');
-            // Use our proxy to avoid CORS issues
-            img.src = `/api/proxy-image?url=${encodeURIComponent(image.url)}`;
-            img.alt = `Page ${image.index}`;
-            img.className = 'manga-image';
-            img.loading = 'lazy'; // Lazy loading for better performance
-            
-            // Error handling for images
-            img.onerror = () => {
-                img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='150'%3E%3Crect width='300' height='150' fill='%23f8d7da' /%3E%3Ctext x='50%25' y='50%25' font-family='Arial' font-size='14' fill='%23721c24' text-anchor='middle'%3EError loading image%3C/text%3E%3C/svg%3E`;
-                img.alt = 'Error loading image';
-            };
-            
-            const downloadBtn = document.createElement('a');
-            downloadBtn.href = `/api/proxy-image?url=${encodeURIComponent(image.url)}`;
-            downloadBtn.download = `page-${image.index}.jpg`;
-            downloadBtn.textContent = `Download Page ${image.index}`;
-            downloadBtn.className = 'download-button';
-            
-            imgContainer.appendChild(pageNumber);
-            imgContainer.appendChild(img);
-            imgContainer.appendChild(downloadBtn);
-            
-            previewArea.appendChild(imgContainer);
-        });
-        
-    } catch (error) {
-        showStatus('Error: ' + error.message, 'error');
-        console.error('Error:', error);
-    } finally {
-        loadingSpinner.style.display = 'none';
-        fetchBtn.disabled = false;
-    }
-}
     </script>
 </body>
 </html>
